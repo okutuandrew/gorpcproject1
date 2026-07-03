@@ -2,47 +2,49 @@ package Server
 
 import (
 	"log"
-	"net"
 	"net/http"
 	"net/rpc"
-	_"time"
 )
+
 
 type Args struct{}
 
-type TimeServer int64
+
+type TimeServer int
+
 
 func (t *TimeServer) GetTime(args *Args, reply *string) error {
-	*reply = "TEST SUCCEEDED"
+	*reply = "SERVER 1: Time request processed successfully!"
 	return nil
-} 
+}
 
 
-
-
-func startHTTPServer(l net.Listener) {
-	err := http.Serve(l, nil)
-	if err != nil {
-		log.Fatal("HTTP serve error:", err)
+func runServer(port string, mux *http.ServeMux) {
+	log.Printf("Microservice listening on port %s...", port)
+	if err := http.ListenAndServe(port, mux); err != nil {
+		log.Fatalf("Server failed to start on %s: %v", port, err)
 	}
 }
 
 
-func Server() string {
 
-	timeserver := new(TimeServer)
-
-	// register RPC
-	rpc.Register(timeserver)
-	rpc.HandleHTTP()
-
-	l, err := net.Listen("tcp", ":1234")
+func StartServer1() string {
+	// Create an isolated RPC registry instance instead of using the global default
+	server := rpc.NewServer()
+	
+	// Register our TimeServer service to this isolated instance
+	err := server.Register(new(TimeServer))
 	if err != nil {
-		log.Fatal("listen error:", err)
+		log.Fatalf("Registration error: %v", err)
 	}
 
-	go  startHTTPServer(l); 
+	// Create an isolated HTTP router
+	mux := http.NewServeMux()
+	
+	// Bind our isolated RPC server to this specific router path
+	mux.Handle(rpc.DefaultRPCPath, server)
 
+	go runServer(":1234", mux)
 
-	return "SERVER STARTED"
+	return "SERVER 1 INITIALIZED"
 }
